@@ -1,0 +1,89 @@
+name: Build Image
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: leptos-base
+  MAJOR_VERSION: 10
+  DEFAULT_TAG: ${{ github.ref_name }}
+  IMAGE_FULL: ghcr.io/${{ github.repository }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_push:
+    name: Build and push image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v7
+
+      - name: "Check for updates"
+        if: ${{ github.event_name == 'schedule' }}  # Only run if triggered by schedule
+        run: |
+          upd=0
+          podman run --quiet --rm ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }} dnf check-update || upd=$?
+
+          echo "upd=${upd}" >> "$GITHUB_ENV"
+          echo "Exit code from dnf check-update: '${upd}'"
+
+      - name: "Setup"
+        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+        shell: "bash"
+        run: |
+            echo "DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+
+      - name: "GHCR Login"
+        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+        uses: redhat-actions/podman-login@v1.7
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Build and Rechunk"
+        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+        uses: jharmison-redhat/action-bootc-build@v1.0.3
+        with:
+          file: "/build/Containerfile"
+          tag: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
+          max-layers: "127"
+          push: "true"
+          labels: |
+            org.opencontainers.image.title=${{ env.IMAGE_NAME }}
+            org.opencontainers.image.version=${{ env.MAJOR_VERSION }}.${{ env.DATE }}
+            org.opencontainers.image.source=${{ env.IMAGE_FULL }}
+            containers.bootc=1
+
+#      - name: "Get digest"
+#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+#        shell: "bash"
+#        run: |
+#          echo "DIGEST=$(sudo podman image inspect --format '{{.Digest}}' ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }})" >> "$GITHUB_ENV"
+#
+#      - name: "Install Cosign"
+#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+#        uses: sigstore/cosign-installer@v4.1.2
+#
+#      - name: "Sign image"
+#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+#        shell: "bash"
+#        env:
+#          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+#          IMAGE: ${{ env.IMAGE_FULL }}@${{ env.DIGEST }}
+#        run: |
+#          set -euo pipefail
+#          cosign sign --yes \
+#            --new-bundle-format=false \
+#            --use-signing-config=false \
+#            --key env://COSIGN_PRIVATE_KEY \
+#            "${IMAGE}"

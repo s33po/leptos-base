@@ -1,0 +1,61 @@
+recommends: true
+
+include:
+  - minimal-plus/manifest.yaml
+  - standard/autoupdates.yaml
+  - standard/system-configuration.yaml
+  - standard/persistent-journal.yaml
+  - standard/initramfs-full.yaml
+  - standard/generic-growfs.yaml
+
+packages:
+  - amd-gpu-firmware
+  - amd-ucode-firmware
+  - bzip2
+  - dnf-bootc
+  - dnf-yum
+  - intel-gpu-firmware
+  - intel-audio-firmware
+  - kbd
+  - nano
+  - ncurses
+  - openssl
+  - python3-rpm
+  - zram-generator
+  - zstd
+
+exclude-packages:
+  - atheros-firmware
+  - brcmfmac-firmware
+  - cirrus-audio-firmware
+  - grubby
+  - initscripts
+  - iptables-legacy
+  - kernel-debug-uki-virt
+  - kernel-uki-virt
+  - mt7xxx-firmware
+  - NetworkManager-initscripts-ifcfg-rh
+  - nodejs
+  - nvidia-gpu-firmware
+  - nxpwireless-firmware
+  - perl
+  - perl-interpreter
+  - realtek-firmware
+  - systemd-networkd
+  - tiwilink-firmware
+
+postprocess:
+  - |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p /usr/lib/bootc/install/
+    cat > /usr/lib/bootc/install/20-rhel.toml << EOF
+    [install]
+    root-fs-type = "xfs"
+    EOF
+  - |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dnf clean all
+    rm /var/{log,cache,lib}/* -rf
+    systemctl preset-all

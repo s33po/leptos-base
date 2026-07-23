@@ -1,0 +1,24 @@
+FROM quay.io/centos/centos:stream10-minimal AS repos
+FROM quay.io/centos-bootc/centos-bootc:stream10 AS builder
+
+RUN rm -rf /etc/yum.repos.d/ /etc/pki/rpm-gpg
+
+COPY --from=repos /etc/yum.repos.d /etc/yum.repos.d
+COPY --from=repos /etc/pki/rpm-gpg /etc/pki/rpm-gpg
+COPY /build/leptos.yaml /usr/share/doc/bootc-base-imagectl/manifests/
+
+RUN /usr/libexec/bootc-base-imagectl build-rootfs --reinject --manifest=leptos /target-rootfs
+
+###
+
+FROM scratch
+COPY --from=builder /target-rootfs/ /
+
+RUN bootc container lint
+
+LABEL containers.bootc=1
+LABEL ostree.bootable=1
+ENV container=oci
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
