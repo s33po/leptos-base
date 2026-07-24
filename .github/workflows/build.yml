@@ -51,6 +51,7 @@ jobs:
           tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
           extra-args: |
             --cap-add=all
+            --privileged
             --device=/dev/fuse
             --skip-unused-stages=false
             --security-opt=label=disable
