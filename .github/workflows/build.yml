@@ -50,6 +50,8 @@ jobs:
           oci: true
           tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
           extra-args: |
+            --cap-add=all
+            --device=/dev/fuse
             --skip-unused-stages=false
             --security-opt=label=disable
             -v ${{ github.workspace }}:/run/src
