@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build_push:
     name: Build and push image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -42,6 +42,18 @@ jobs:
         run: |
             echo "DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
 
+      - name: "Build and Rechunk with Chunkah"
+        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
+        uses: redhat-actions/buildah-build@v2.13
+        with:
+          containerfiles: "/build/Containerfile"
+          oci: true
+          tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
+          extra-args: |
+            --skip-unused-stages=false
+            --security-opt=label=disable
+            -v ${{ github.workspace }}:/run/src
+
       - name: "GHCR Login"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
         uses: redhat-actions/podman-login@v1.7
@@ -50,26 +62,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Build and Rechunk"
+      - name: "Push image"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-        uses: jharmison-redhat/action-bootc-build@v1.0.3
+        uses: redhat-actions/push-to-registry@v2.8
+        id: "push"
         with:
-          file: "/build/Containerfile"
-          tag: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
-          max-layers: "127"
-          push: "true"
-          labels: |
-            org.opencontainers.image.title=${{ env.IMAGE_NAME }}
-            org.opencontainers.image.version=${{ env.MAJOR_VERSION }}.${{ env.DATE }}
-            org.opencontainers.image.source=${{ env.IMAGE_FULL }}
-            containers.bootc=1
+          tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
+          extra-args: |
+            --compression-format=zstd:chunked
+            --compression-level=3
+            --force-compression
 
-#      - name: "Get digest"
-#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-#        shell: "bash"
-#        run: |
-#          echo "DIGEST=$(sudo podman image inspect --format '{{.Digest}}' ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }})" >> "$GITHUB_ENV"
-#
 #      - name: "Install Cosign"
 #        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
 #        uses: sigstore/cosign-installer@v4.1.2
@@ -79,11 +82,12 @@ jobs:
 #        shell: "bash"
 #        env:
 #          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-#          IMAGE: ${{ env.IMAGE_FULL }}@${{ env.DIGEST }}
+#          DIGEST: ${{ steps.push.outputs.digest }}
+#          IMG: ${{ env.IMAGE_FULL }}
 #        run: |
 #          set -euo pipefail
 #          cosign sign --yes \
 #            --new-bundle-format=false \
 #            --use-signing-config=false \
 #            --key env://COSIGN_PRIVATE_KEY \
-#            "${IMAGE}"
+#            "${IMG}@${DIGEST}"
