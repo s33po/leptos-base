@@ -44,7 +44,7 @@ jobs:
 
       - name: "GHCR Login"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-        uses: redhat-actions/podman-login@v1.7
+        uses: redhat-actions/podman-login@v2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
