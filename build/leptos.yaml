@@ -13,6 +13,7 @@ packages:
   - amd-ucode-firmware
   - bzip2
   - clevis
+  - clevis-luks
   - dnf-bootc
   - dnf-yum
   - intel-gpu-firmware
