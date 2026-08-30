@@ -44,7 +44,7 @@ jobs:
 
       - name: "Build and Rechunk with Chunkah"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-        uses: redhat-actions/buildah-build@v2.13
+        uses: redhat-actions/buildah-build@v3.1
         with:
           containerfiles: "/build/Containerfile"
           oci: true
@@ -58,7 +58,7 @@ jobs:
 
       - name: "GHCR Login"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-        uses: redhat-actions/podman-login@v1.7
+        uses: redhat-actions/podman-login@v2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -66,7 +66,7 @@ jobs:
 
       - name: "Push image"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-        uses: redhat-actions/push-to-registry@v2.8
+        uses: redhat-actions/push-to-registry@v3.0
         id: "push"
         with:
           tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
