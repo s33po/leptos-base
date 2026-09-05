@@ -3,12 +3,19 @@ on:
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to build and push (default: branch name)'
+        required: false
+        default: ''
 
 env:
   IMAGE_NAME: leptos-base
   MAJOR_VERSION: 10
-  DEFAULT_TAG: ${{ github.ref_name }}
+  CENTOS_BOOTC_IMAGE: quay.io/centos-bootc/centos-bootc:stream10
+  DEFAULT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
   IMAGE_FULL: ghcr.io/${{ github.repository }}
+  REGISTRY_DOMAIN: ghcr.io
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +28,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
       - name: "Checkout"
@@ -41,6 +47,15 @@ jobs:
         shell: "bash"
         run: |
             echo "DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+            sudo mkdir -p /etc/containers/registries.d
+            echo -e "docker:\n  ${{ env.REGISTRY_DOMAIN }}:\n    use-sigstore-attachments: true" \
+                | sudo tee -a /etc/containers/registries.d/${{ env.REGISTRY_DOMAIN }}.yaml
+            podman pull "${{ env.CENTOS_BOOTC_IMAGE }}"
+            {
+              echo "CHUNKAH_CONFIG_STR<<CHUNKEOF"
+              podman inspect "${{ env.CENTOS_BOOTC_IMAGE }}" | jq -c .
+              echo "CHUNKEOF"
+            } >> "$GITHUB_ENV"
 
       - name: "Build and Rechunk with Chunkah"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
@@ -49,9 +64,10 @@ jobs:
           containerfiles: "/build/Containerfile"
           oci: true
           tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
+          build-args: |
+            CENTOS_BOOTC_IMAGE=${{ env.CENTOS_BOOTC_IMAGE }}
+            CHUNKAH_CONFIG_STR=${{ env.CHUNKAH_CONFIG_STR }}
           extra-args: |
-            --cap-add=all
-            --device=/dev/fuse
             --skip-unused-stages=false
             --security-opt=label=disable
             -v ${{ github.workspace }}:/run/src
@@ -74,22 +90,3 @@ jobs:
             --compression-format=zstd:chunked
             --compression-level=3
             --force-compression
-
-#      - name: "Install Cosign"
-#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-#        uses: sigstore/cosign-installer@v4.1.2
-#
-#      - name: "Sign image"
-#        if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
-#        shell: "bash"
-#        env:
-#          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-#          DIGEST: ${{ steps.push.outputs.digest }}
-#          IMG: ${{ env.IMAGE_FULL }}
-#        run: |
-#          set -euo pipefail
-#          cosign sign --yes \
-#            --new-bundle-format=false \
-#            --use-signing-config=false \
-#            --key env://COSIGN_PRIVATE_KEY \
-#            "${IMG}@${DIGEST}"

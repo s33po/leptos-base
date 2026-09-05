@@ -1,5 +1,7 @@
+ARG CENTOS_BOOTC_IMAGE=quay.io/centos-bootc/centos-bootc:stream10
+
 FROM quay.io/centos/centos:stream10-minimal AS repos
-FROM quay.io/centos-bootc/centos-bootc:stream10 AS builder
+FROM ${CENTOS_BOOTC_IMAGE} AS builder
 
 RUN rm -rf /etc/yum.repos.d/ /etc/pki/rpm-gpg
 
@@ -18,10 +20,11 @@ RUN bootc container lint
 
 # Rechunk image using chunkah
 FROM quay.io/coreos/chunkah AS chunkah
+ARG CHUNKAH_CONFIG_STR
 RUN --mount=from=unchunked,src=/,target=/chunkah,ro \
     --mount=type=bind,target=/run/src,rw \
     chunkah build \
-        --max-layers 127 \
+        --max-layers 256 \
         --prune /sysroot/ \
         --label ostree.commit- \
         --label ostree.final-diffid- \
