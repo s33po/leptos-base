@@ -11,8 +11,6 @@ on:
 
 env:
   IMAGE_NAME: leptos-base
-  MAJOR_VERSION: 10
-  CENTOS_BOOTC_IMAGE: quay.io/centos-bootc/centos-bootc:stream10
   DEFAULT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
   IMAGE_FULL: ghcr.io/${{ github.repository }}
   REGISTRY_DOMAIN: ghcr.io
@@ -24,7 +22,7 @@ concurrency:
 jobs:
   build_push:
     name: Build and push image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -50,23 +48,14 @@ jobs:
             sudo mkdir -p /etc/containers/registries.d
             echo -e "docker:\n  ${{ env.REGISTRY_DOMAIN }}:\n    use-sigstore-attachments: true" \
                 | sudo tee -a /etc/containers/registries.d/${{ env.REGISTRY_DOMAIN }}.yaml
-            podman pull "${{ env.CENTOS_BOOTC_IMAGE }}"
-            {
-              echo "CHUNKAH_CONFIG_STR<<CHUNKEOF"
-              podman inspect "${{ env.CENTOS_BOOTC_IMAGE }}" | jq -c .
-              echo "CHUNKEOF"
-            } >> "$GITHUB_ENV"
 
-      - name: "Build and Rechunk with Chunkah"
+      - name: "Build and Rechunk"
         if: ${{ github.event_name == 'workflow_dispatch' || env.upd != 0 }}
         uses: redhat-actions/buildah-build@v3.1.0
         with:
           containerfiles: "/build/Containerfile"
           oci: true
           tags: ${{ env.IMAGE_FULL }}:${{ env.DEFAULT_TAG }}
-          build-args: |
-            CENTOS_BOOTC_IMAGE=${{ env.CENTOS_BOOTC_IMAGE }}
-            CHUNKAH_CONFIG_STR=${{ env.CHUNKAH_CONFIG_STR }}
           extra-args: |
             --skip-unused-stages=false
             --security-opt=label=disable
