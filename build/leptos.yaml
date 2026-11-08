@@ -2,7 +2,6 @@ recommends: true
 
 include:
   - minimal-plus/manifest.yaml
-  - standard/autoupdates.yaml
   - standard/system-configuration.yaml
   - standard/persistent-journal.yaml
   - standard/initramfs-full.yaml
